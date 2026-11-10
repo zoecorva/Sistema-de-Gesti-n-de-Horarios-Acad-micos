@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gestión de horarios académicos</title>
+<style>
+  :root { --bg:#f8f1fc; --ink:#2b1a40; --muted:#6a5882; --line:#e3d3f0; --card:#fff; --main:#4b2184; --pink:#ff8fcf; --bad:#b3261e; --good:#1b7a46; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#1a1126; --ink:#f1e8fa; --muted:#b9a5d0; --line:#3a2a52; --card:#241736; --bad:#ff9a92; --good:#7fe0a5; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  :focus-visible { outline:3px solid var(--pink); outline-offset:2px; }
+  .wrap { max-width:1100px; margin:0 auto; padding:0 20px 56px; }
+  header { padding:28px 0 8px; }
+  h1 { margin:0 0 4px; font-size:clamp(1.6rem,4vw,2.3rem); letter-spacing:-.01em; }
+  h2 { margin:0 0 14px; font-size:1.3rem; }
+  header p { margin:0 0 16px; color:var(--muted); max-width:62ch; }
+  section { margin-top:28px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px; }
+  .bar { display:flex; flex-wrap:wrap; gap:8px; }
+  button, .btn { font:inherit; font-weight:600; cursor:pointer; padding:8px 14px; border-radius:8px; border:2px solid var(--main); background:var(--main); color:#fff1fa; }
+  button.ghost, .btn.ghost { background:transparent; color:var(--ink); border-color:var(--line); }
+  button.danger { background:transparent; color:var(--bad); border-color:var(--bad); }
+  button.small { padding:3px 10px; font-size:.88rem; }
+  form { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px; }
+  label { display:grid; gap:4px; font-weight:600; font-size:.92rem; }
+  input, select { font:inherit; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--ink); width:100%; }
+  .actions { grid-column:1/-1; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  #msg { min-height:1.4em; font-weight:600; }
+  #msg.error { color:var(--bad); } #msg.ok { color:var(--good); }
+  .filters { display:flex; flex-wrap:wrap; gap:12px; margin-bottom:14px; }
+  .filters label { min-width:200px; }
+  .week { display:grid; grid-template-columns:repeat(auto-fit,minmax(165px,1fr)); gap:12px; }
+  .day { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; }
+  .day h3 { margin:0 0 8px; font-size:1rem; color:var(--main); }
+  @media (prefers-color-scheme: dark) { .day h3 { color:var(--pink); } }
+  .clase { border-left:4px solid var(--pink); padding:4px 8px; margin-bottom:8px; background:var(--bg); border-radius:0 8px 8px 0; font-size:.92rem; }
+  .clase b { display:block; } .clase span, .vacio { color:var(--muted); font-size:.88rem; }
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; min-width:640px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); }
+  td:last-child { white-space:nowrap; } td:last-child button { margin-right:6px; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:20px; }
+  .row { display:grid; grid-template-columns:120px 1fr 48px; gap:8px; align-items:center; margin-bottom:6px; font-size:.92rem; }
+  .track { background:var(--bg); border-radius:6px; height:14px; overflow:hidden; }
+  .fill { background:linear-gradient(90deg,var(--main),var(--pink)); height:100%; }
+  input[type=file] { display:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Gestión de horarios académicos</h1>
+    <p>Cargá clases, evitá superposiciones de aulas y profesores, y mirá la semana completa. Los datos quedan guardados en este navegador.</p>
+    <div class="bar">
+      <button type="button" id="btn-ejemplo" class="ghost">Cargar datos de ejemplo</button>
+      <button type="button" id="btn-export" class="ghost">Exportar CSV</button>
+      <label class="btn ghost" for="file-csv" tabindex="0" id="lbl-import">Importar CSV</label>
+      <input type="file" id="file-csv" accept=".csv,text/csv">
+      <button type="button" id="btn-borrar" class="danger">Borrar todo</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2 id="form-title">Nuevo horario</h2>
+      <form id="f" novalidate>
+        <label>Materia <input name="materia" required></label>
+        <label>Profesor <input name="profesor" list="dl-pro" required></label>
+        <label>Aula <input name="aula" list="dl-aula" required></label>
+        <label>Día <select name="dia" id="dia"></select></label>
+        <label>Hora de inicio <input type="time" name="horaInicio" required></label>
+        <label>Hora de fin <input type="time" name="horaFin" required></label>
+        <div class="actions">
+          <button type="submit" id="btn-guardar">Guardar horario</button>
+          <button type="button" id="btn-cancelar" class="ghost" hidden>Cancelar edición</button>
+          <span id="msg" role="status" aria-live="polite"></span>
+        </div>
+        <datalist id="dl-pro"></datalist><datalist id="dl-aula"></datalist>
+      </form>
+    </section>
+
+    <section>
+      <h2>Horario semanal</h2>
+      <div class="filters">
+        <label>Profesor <select id="f-pro"></select></label>
+        <label>Aula <select id="f-aula"></select></label>
+      </div>
+      <div class="week" id="week"></div>
+    </section>
+
+    <section>
+      <h2>Todos los horarios</h2>
+      <div class="card scroll"><table>
+        <thead><tr><th>Día</th><th>Horario</th><th>Materia</th><th>Profesor</th><th>Aula</th><th>Acciones</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table></div>
+    </section>
+
+    <section>
+      <h2>Horas semanales por aula y por profesor</h2>
+      <div class="card stats" id="stats"></div>
+    </section>
+  </main>
+</div>
+
+<script>
+const DIAS = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+const KEY = 'horarios-academicos-v1';
+const HORA_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const $ = id => document.getElementById(id);
+let horarios = load();
+let editId = null;
+
+function load() { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { return []; } }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(horarios)); } catch (e) { msg('No se pudo guardar en este navegador.', 'error'); } }
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(16).slice(2));
+const toMin = h => { const [a, b] = h.split(':').map(Number); return a * 60 + b; };
+const norm = s => s.trim().toLowerCase();
+const sinTildes = s => norm(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const horas = h => (toMin(h.horaFin) - toMin(h.horaInicio)) / 60;
+const ordenar = arr => [...arr].sort((a, b) => DIAS.indexOf(a.dia) - DIAS.indexOf(b.dia) || toMin(a.horaInicio) - toMin(b.horaInicio));
+
+function el(tag, props = {}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === 'class') n.className = v;
+    else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+    else n.setAttribute(k, v);
+  }
+  n.append(...kids);
+  return n;
+}
+function msg(texto, tipo) { const m = $('msg'); m.textContent = texto; m.className = tipo || ''; }
+
+// Devuelve un texto de error, o null si el horario es válido
+function validar(h, excluirId) {
+  if (!h.materia || !h.profesor || !h.aula) return 'Completá materia, profesor y aula.';
+  if (!DIAS.includes(h.dia)) return 'Elegí un día válido.';
+  if (!HORA_RE.test(h.horaInicio) || !HORA_RE.test(h.horaFin)) return 'Completá las horas con formato HH:MM.';
+  if (toMin(h.horaInicio) >= toMin(h.horaFin)) return 'La hora de inicio debe ser anterior a la de fin.';
+  const c = horarios.find(o => o.id !== excluirId && o.dia === h.dia &&
+    toMin(o.horaInicio) < toMin(h.horaFin) && toMin(o.horaFin) > toMin(h.horaInicio) &&
+    (norm(o.aula) === norm(h.aula) || norm(o.profesor) === norm(h.profesor)));
+  if (c) {
+    const quien = norm(c.aula) === norm(h.aula) ? `El aula ${c.aula} ya está ocupada` : `${c.profesor} ya tiene clase`;
+    return `Conflicto: ${quien} el ${c.dia} de ${c.horaInicio} a ${c.horaFin} (${c.materia}).`;
+  }
+  return null;
+}
+
+function limpiar(h) {
+  return { materia: h.materia.trim(), profesor: h.profesor.trim(), aula: h.aula.trim(), dia: h.dia, horaInicio: h.horaInicio, horaFin: h.horaFin };
+}
+
+function filtrados() {
+  const p = $('f-pro').value, a = $('f-aula').value;
+  return ordenar(horarios).filter(h => (!p || h.profesor === p) && (!a || h.aula === a));
+}
+
+function opciones(select, valores, todos) {
+  const actual = select.value;
+  select.replaceChildren(el('option', { value: '' }, todos), ...valores.map(v => el('option', { value: v }, v)));
+  select.value = valores.includes(actual) ? actual : '';
+}
+const unicos = campo => [...new Set(horarios.map(h => h[campo]))].sort((a, b) => a.localeCompare(b, 'es'));
+
+function render() {
+  const pros = unicos('profesor'), aulas = unicos('aula');
+  opciones($('f-pro'), pros, 'Todos los profesores');
+  opciones($('f-aula'), aulas, 'Todas las aulas');
+  $('dl-pro').replaceChildren(...pros.map(v => el('option', { value: v })));
+  $('dl-aula').replaceChildren(...aulas.map(v => el('option', { value: v })));
+
+  const lista = filtrados();
+  $('week').replaceChildren(...DIAS.map(d => {
+    const clases = lista.filter(h => h.dia === d);
+    return el('div', { class: 'day' }, el('h3', {}, d),
+      ...(clases.length ? clases.map(h => el('div', { class: 'clase' },
+        el('b', {}, `${h.horaInicio} – ${h.horaFin}`), h.materia, el('br'), el('span', {}, `${h.profesor} · ${h.aula}`)))
+        : [el('div', { class: 'vacio' }, 'Sin clases')]));
+  }));
+
+  $('tbody').replaceChildren(...(lista.length ? lista.map(h => el('tr', {},
+    el('td', {}, h.dia), el('td', {}, `${h.horaInicio} – ${h.horaFin}`), el('td', {}, h.materia),
+    el('td', {}, h.profesor), el('td', {}, h.aula),
+    el('td', {}, el('button', { type: 'button', class: 'ghost small', onclick: () => editar(h.id) }, 'Editar'),
+      el('button', { type: 'button', class: 'danger small', onclick: () => borrar(h.id) }, 'Borrar'))))
+    : [el('tr', {}, el('td', { colspan: '6' }, 'Todavía no hay horarios. Cargá uno arriba o usá los datos de ejemplo.'))]));
+
+  $('stats').replaceChildren(grafico('Por aula', 'aula'), grafico('Por profesor', 'profesor'));
+}
+
+function grafico(titulo, campo) {
+  const total = {};
+  horarios.forEach(h => { total[h[campo]] = (total[h[campo]] || 0) + horas(h); });
+  const filas = Object.entries(total).sort((a, b) => b[1] - a[1]);
+  const max = filas.length ? filas[0][1] : 1;
+  return el('div', {}, el('h3', {}, titulo),
+    ...(filas.length ? filas.map(([nombre, h]) => el('div', { class: 'row' },
+      el('span', {}, nombre),
+      el('div', { class: 'track' }, el('div', { class: 'fill', style: `width:${(h / max) * 100}%` })),
+      el('span', {}, `${+h.toFixed(1)} h`))) : [el('div', { class: 'vacio' }, 'Sin datos')]));
+}
+
+function editar(id) {
+  const h = horarios.find(x => x.id === id); if (!h) return;
+  editId = id;
+  const f = $('f');
+  ['materia', 'profesor', 'aula', 'dia', 'horaInicio', 'horaFin'].forEach(k => { f.elements[k].value = h[k]; });
+  $('form-title').textContent = 'Editar horario';
+  $('btn-guardar').textContent = 'Guardar cambios';
+  $('btn-cancelar').hidden = false;
+  msg('');
+  f.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function salirEdicion() {
+  editId = null; $('f').reset();
+  $('form-title').textContent = 'Nuevo horario';
+  $('btn-guardar').textContent = 'Guardar horario';
+  $('btn-cancelar').hidden = true;
+}
+function borrar(id) {
+  if (!confirm('¿Borrar este horario?')) return;
+  horarios = horarios.filter(h => h.id !== id);
+  if (editId === id) salirEdicion();
+  save(); render();
+}
+
+$('dia').replaceChildren(...DIAS.map(d => el('option', { value: d }, d)));
+$('f').addEventListener('submit', e => {
+  e.preventDefault();
+  const datos = limpiar(Object.fromEntries(new FormData($('f'))));
+  const error = validar(datos, editId);
+  if (error) return msg(error, 'error');
+  if (editId) horarios = horarios.map(h => h.id === editId ? { id: editId, ...datos } : h);
+  else horarios.push({ id: uid(), ...datos });
+  save(); salirEdicion(); render(); msg('Horario guardado.', 'ok');
+});
+$('btn-cancelar').addEventListener('click', () => { salirEdicion(); msg(''); });
+$('f-pro').addEventListener('change', render);
+$('f-aula').addEventListener('change', render);
+$('btn-borrar').addEventListener('click', () => {
+  if (!horarios.length || !confirm('¿Borrar todos los horarios?')) return;
+  horarios = []; salirEdicion(); save(); render(); msg('Se borraron todos los horarios.', 'ok');
+});
+
+// Datos de ejemplo
+const EJEMPLO = [
+  ['Matemática I', 'Prof. Gómez', 'Aula 101', 'Lunes', '08:00', '10:00'],
+  ['Programación I', 'Prof. Ruiz', 'Aula 102', 'Lunes', '10:00', '12:00'],
+  ['Estadística', 'Prof. Díaz', 'Aula 101', 'Martes', '08:00', '10:00'],
+  ['Bases de datos', 'Prof. Ruiz', 'Laboratorio 1', 'Martes', '14:00', '17:00'],
+  ['Inglés técnico', 'Prof. López', 'Aula 103', 'Miércoles', '18:00', '20:00'],
+  ['Algoritmos', 'Prof. Gómez', 'Laboratorio 1', 'Jueves', '08:00', '11:00'],
+  ['Sistemas operativos', 'Prof. Díaz', 'Aula 102', 'Viernes', '16:00', '18:00']
+];
+$('btn-ejemplo').addEventListener('click', () => {
+  let n = 0;
+  EJEMPLO.forEach(([materia, profesor, aula, dia, horaInicio, horaFin]) => {
+    const h = { materia, profesor, aula, dia, horaInicio, horaFin };
+    if (!validar(h)) { horarios.push({ id: uid(), ...h }); n++; }
+  });
+  save(); render();
+  msg(n ? `Se cargaron ${n} horarios de ejemplo.` : 'Los datos de ejemplo ya estaban cargados.', 'ok');
+});
+
+// CSV
+const comillas = v => '"' + String(v).replace(/"/g, '""') + '"';
+$('btn-export').addEventListener('click', () => {
+  if (!horarios.length) return msg('No hay horarios para exportar.', 'error');
+  const filas = ordenar(horarios).map(h => [h.materia, h.profesor, h.aula, h.dia, h.horaInicio, h.horaFin].map(comillas).join(','));
+  const csv = '\ufeff' + ['materia,profesor,aula,dia,horaInicio,horaFin', ...filas].join('\r\n');
+  const a = el('a', { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })), download: 'horarios.csv' });
+  a.click(); URL.revokeObjectURL(a.href);
+});
+
+function parseCSV(texto, sep) {
+  const filas = []; let fila = [], celda = '', entre = false;
+  for (let i = 0; i < texto.length; i++) {
+    const c = texto[i];
+    if (entre) {
+      if (c === '"') { if (texto[i + 1] === '"') { celda += '"'; i++; } else entre = false; } else celda += c;
+    } else if (c === '"') entre = true;
+    else if (c === sep) { fila.push(celda); celda = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && texto[i + 1] === '\n') i++; fila.push(celda); filas.push(fila); fila = []; celda = ''; }
+    else celda += c;
+  }
+  if (celda !== '' || fila.length) { fila.push(celda); filas.push(fila); }
+  return filas.filter(f => f.some(x => x.trim() !== ''));
+}
+
+$('lbl-import').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('file-csv').click(); } });
+$('file-csv').addEventListener('change', async e => {
+  const archivo = e.target.files[0]; e.target.value = '';
+  if (!archivo) return;
+  const texto = (await archivo.text()).replace(/^\ufeff/, '');
+  const primera = texto.split(/\r?\n/)[0] || '';
+  const filas = parseCSV(texto, primera.includes(';') && !primera.includes(',') ? ';' : ',');
+  if (filas.length < 2) return msg('El archivo está vacío o no tiene filas de datos.', 'error');
+  const cols = filas[0].map(c => sinTildes(c).replace(/[\s_]/g, ''));
+  const idx = {}; ['materia', 'profesor', 'aula', 'dia', 'horainicio', 'horafin'].forEach(k => { idx[k] = cols.indexOf(k); });
+  if (Object.values(idx).some(i => i < 0)) return msg('Faltan columnas. Se necesitan: materia, profesor, aula, dia, horaInicio, horaFin.', 'error');
+  let ok = 0, omitidos = 0, primero = '';
+  filas.slice(1).forEach((f, n) => {
+    const dia = DIAS.find(d => sinTildes(d) === sinTildes(f[idx.dia] || ''));
+    const h = { materia: (f[idx.materia] || '').trim(), profesor: (f[idx.profesor] || '').trim(), aula: (f[idx.aula] || '').trim(),
+      dia, horaInicio: (f[idx.horainicio] || '').trim().padStart(5, '0'), horaFin: (f[idx.horafin] || '').trim().padStart(5, '0') };
+    const error = validar(h);
+    if (error) { omitidos++; if (!primero) primero = ` Primer problema (fila ${n + 2}): ${error}`; }
+    else { horarios.push({ id: uid(), ...h }); ok++; }
+  });
+  save(); render();
+  msg(`Se importaron ${ok} horarios.` + (omitidos ? ` Se omitieron ${omitidos}.${primero}` : ''), omitidos ? 'error' : 'ok');
+});
+
+render();
+</script>
+</body>
+</html>
